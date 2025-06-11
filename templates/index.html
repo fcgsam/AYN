@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ask Your Notes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .prose {
+      background: transparent !important;
+    }
+    /* Copy button style */
+    .copy-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .file-drop-area {
+      border: 2px dashed #ccc;
+      transition: all 0.3s;
+    }
+    .file-drop-area.active {
+      border-color: #3b82f6;
+      background-color: #f0f7ff;
+    }
+    .file-duplicate {
+      animation: pulse 0.5s ease-in-out;
+      border-left: 3px solid #f59e0b;
+    }
+    .file-warning {
+      color: #f59e0b;
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+    /* Markdown styling */
+    .markdown-content h1, .markdown-content h2, .markdown-content h3, 
+    .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+      font-weight: bold;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+    }
+    .markdown-content h1 { font-size: 1.8em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+    .markdown-content h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+    .markdown-content h3 { font-size: 1.3em; }
+    .markdown-content h4 { font-size: 1.1em; }
+    .markdown-content p { margin-bottom: 1em; }
+    .markdown-content ul, .markdown-content ol { padding-left: 2em; margin-bottom: 1em; }
+    .markdown-content li { margin-bottom: 0.5em; }
+    .markdown-content blockquote {
+      border-left: 4px solid #ddd;
+      padding-left: 1em;
+      color: #666;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .markdown-content code {
+      background-color: #f3f4f6;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .markdown-content pre {
+      background-color: #f3f4f6;
+      padding: 1em;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .markdown-content a {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+    
+
+    
+    /* Loading animations */
+    /* For Q&A processing */
+    .typing-indicator {
+      display: flex;
+      padding: 10px 15px;
+      background: #f3f4f6;
+      border-radius: 18px;
+      width: fit-content;
+      margin: 0 auto;
+    }
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #9ca3af;
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: typingAnimation 1.4s infinite ease-in-out;
+    }
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    
+
+    /* Animations */
+    @keyframes typingAnimation {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-5px); }
+    }
+    
+    .cursor-not-allowed {
+        cursor: not-allowed;
+    }
+
+    /* Add to your existing styles */
+.file-list-item {
+    transition: all 0.2s;
+}
+.file-list-item:hover {
+    background-color: #f3f4f6;
+}
+.delete-file-btn {
+    transition: opacity 0.2s;
+}
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Custom Confirm Dialog Styles */
+#custom-confirm {
+  transition: opacity 0.3s ease;
+}
+#custom-confirm .bg-white {
+  transform: translateY(0);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+#custom-confirm.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+#custom-confirm.hidden .bg-white {
+  transform: translateY(-20px);
+}
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="flex flex-col h-screen">
+    <!-- Header -->
+   <header class="bg-white shadow-sm py-4 px-6 flex justify-between items-center">
+  <h1 class="text-2xl font-semibold text-gray-800 flex items-center gap-3">
+    <div class="bg-blue-100 p-2 rounded-full">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </div>
+    <span class="tracking-tight">Ask Your Notes</span>
+  </h1>
+
+  <div class="flex items-center gap-3">
+    <button id="toggleSidebarBtn"
+      class="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-300">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 7h18M3 12h18M3 17h18" />
+      </svg>
+      Files
+    </button>
+  </div>
+</header>
+
+
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden ">
+      <!-- Sidebar -->
+      <div id="fileSidebar" class="fixed right-0 top-0 h-full w-80 bg-gray-50 border-l shadow-xl transform translate-x-full transition-all duration-300 z-50">
+        <div class="p-4 flex flex-col h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-800">Upload Files</h3>
+                <button id="closeSidebarBtn" class="text-gray-500 hover:text-red-500 text-2xl font-bold transition-colors">&times;</button>
+            </div>
+
+            <!-- File Drop Area -->
+            <div id="file-drop-area" class="file-drop-area bg-white border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4 cursor-pointer hover:bg-gray-100 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p class="mt-2 text-gray-700 font-medium">Drag & drop files here</p>
+                <p class="text-sm text-gray-500">or click to browse</p>
+                <input type="file" id="file-input" class="hidden" multiple>
+            </div>
+
+            <!-- File List -->
+            <div class="flex-1 overflow-y-auto">
+                <div id="upload-status" class="upload-status hidden flex items-center justify-center space-x-2 text-gray-600">
+                    <div class="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                    <span class="text-sm font-medium">Uploading files...</span>
+                </div>
+                <div id="upload-message" class="fixed top-5 right-5 z-50 hidden max-w-sm px-4 py-3 rounded-lg shadow-md transition-opacity duration-500 opacity-0"></div>
+
+                <h4 class="text-lg font-medium text-gray-700 mb-3">Uploaded Files</h4>
+                <div id="file-list" class="space-y-2 text-sm text-gray-600"></div>
+            </div>
+
+            <!-- Reset Button -->
+            <button id="reset-btn" class="mt-4 flex items-center justify-center bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700 text-sm font-medium rounded-lg py-2 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset Session
+            </button>
+        </div>
+      </div>
+
+      <!-- Chat Panel -->
+     <div class="w-full flex flex-col">
+  <!-- Chat Container -->
+  <div id="chat-container" class="flex-1 overflow-y-auto p-4">
+    <!-- Welcome Box -->
+    <div class="w-full bg-blue-50 border border-blue-100 rounded-xl shadow-md p-4 flex flex-col md:flex-row items-center justify-between gap-3 mb-3">
+      <div>
+        <h2 class="text-lg font-semibold text-blue-900">Welcome to Ask Your Notes!</h2>
+        <p class="text-sm text-blue-800">Upload your documents and ask questions about their content.</p>
+        <p class="text-xs text-blue-600 italic mt-1">
+          Supported: <span class="font-medium">PDF, DOCX, PPTX, TXT etc.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="pt-2 px-4 pb-6 flex justify-center"> <!-- Added flex + justify-center -->
+    <div class="relative w-[900px]">
+      <textarea id="question-input" placeholder="Type your question..."
+        class="w-full p-3 pr-10 rounded-xl border border-gray-200 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto transition duration-300"
+        rows="1" style="max-height: 10rem;" autofocus></textarea>
+      <button id="send-btn" class="absolute right-3 top-3 text-gray-400 hover:text-blue-500 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-400 text-center mt-2">
+    This app uses free APIs, so response speed and accuracy may vary.
+  </p>
+</div>
+
+
+    </div>
+  </div>
+
+
+  <!-- Custom Confirmation Dialog -->
+<div id="custom-confirm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+      <button id="confirm-close" class="text-gray-400 hover:text-gray-500">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <p id="confirm-message" class="text-gray-600 mb-6">Are you sure you want to delete this file?</p>
+    <div class="flex justify-end space-x-3">
+      <button id="confirm-cancel" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        Cancel
+      </button>
+      <button id="confirm-ok" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+  <script>
+    // Initialize Marked.js with custom options
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      smartypants: true
+    });
+
+    // DOM elements
+    const fileDropArea = document.getElementById('file-drop-area');
+    const fileInput = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const resetBtn = document.getElementById('reset-btn');
+    const sidebar = document.getElementById('fileSidebar');
+    const openBtn = document.getElementById('toggleSidebarBtn');
+    const closeBtn = document.getElementById('closeSidebarBtn');
+    const sendBtn = document.getElementById('send-btn');
+    const questionInput = document.getElementById('question-input');
+    const chatContainer = document.getElementById('chat-container');
+    const uploadStatus = document.getElementById('upload-status');
+
+    // State
+    const uploadedFiles = new Map(); // Stores file info: {id, name, type}
+
+    // Sidebar toggle functionality
+    openBtn.addEventListener('click', () => {
+      sidebar.classList.remove('translate-x-full');
+    });
+
+    closeBtn.addEventListener('click', () => {
+      sidebar.classList.add('translate-x-full');
+    });
+
+    // File upload functionality
+    fileDropArea.addEventListener('click', () => fileInput.click());
+
+    fileDropArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      fileDropArea.classList.add('active');
+    });
+
+
+    ['dragleave', 'drop'].forEach(event => {
+      fileDropArea.addEventListener(event, (e) => {
+        e.preventDefault();
+        fileDropArea.classList.remove('active');
+      });
+    });
+
+    fileDropArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) {
+        uploadFiles(Array.from(e.dataTransfer.files));
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        uploadFiles(Array.from(e.target.files));
+      }
+    });
+
+    // Custom confirmation system
+const customConfirm = {
+  dialog: document.getElementById('custom-confirm'),
+  message: document.getElementById('confirm-message'),
+  okButton: document.getElementById('confirm-ok'),
+  cancelButton: document.getElementById('confirm-cancel'),
+  closeButton: document.getElementById('confirm-close'),
+  promise: null,
+
+  show: async function(message) {
+    this.message.textContent = message;
+    this.dialog.classList.remove('hidden');
+    
+    return new Promise((resolve) => {
+      this.promise = resolve;
+    });
+  },
+
+  hide: function() {
+    this.dialog.classList.add('hidden');
+    this.promise = null;
+  },
+
+  init: function() {
+    this.okButton.addEventListener('click', () => {
+      if (this.promise) {
+        this.promise(true);
+        this.hide();
+      }
+    });
+
+    [this.cancelButton, this.closeButton].forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this.promise) {
+          this.promise(false);
+          this.hide();
+        }
+      });
+    });
+
+    // Close when clicking outside
+    this.dialog.addEventListener('click', (e) => {
+      if (e.target === this.dialog) {
+        if (this.promise) {
+          this.promise(false);
+          this.hide();
+        }
+      }
+    });
+  }
+};
+
+// Initialize the confirmation dialog
+customConfirm.init();
+
+    // Show loading indicator for Q&A
+    function showQALoading() {
+      const loadingEl = document.createElement('div');
+      loadingEl.id = 'qa-loading';
+      loadingEl.className = 'flex justify-center my-4';
+      loadingEl.innerHTML = `
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+      chatContainer.appendChild(loadingEl);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return loadingEl;
+    }
+
+    // Show loading indicator for file upload
+    function showFileUploadLoading() {
+      uploadStatus.classList.remove('hidden');
+      return uploadStatus;
+    }
+
+    // Hide loading indicators
+    function hideLoading(loadingEl) {
+      if (loadingEl && loadingEl.parentNode) {
+        if (loadingEl.id === 'qa-loading') {
+          loadingEl.parentNode.removeChild(loadingEl);
+        } else if (loadingEl === uploadStatus) {
+          loadingEl.classList.add('hidden');
+        }
+      }
+    }
+    // Function to load files from localStorage
+function saveFilesToLocalStorage() {
+  const expiryTime = Date.now() + 5 * 60 * 60 * 1000; // 5 hours from now
+  const files = {
+    expiresAt: expiryTime,
+    data: Array.from(uploadedFiles.entries()).map(([id, file]) => ({
+      id,
+      name: file.name,
+      type: file.type
+    }))
+  };
+  localStorage.setItem('uploadedFiles', JSON.stringify(files));
+}
+
+function loadFilesFromLocalStorage() {
+  const stored = localStorage.getItem('uploadedFiles');
+  if (!stored) return;
+
+  const parsed = JSON.parse(stored);
+
+  if (!parsed.expiresAt || Date.now() > parsed.expiresAt) {
+    localStorage.removeItem('uploadedFiles');
+    return;
+  }
+
+  parsed.data.forEach(file => {
+    uploadedFiles.set(file.id, { name: file.name, type: file.type });
+    addFileToUI(file.name, file.type, file.id);
+  });
+}
+
+    // Run on page load
+    document.addEventListener('DOMContentLoaded', loadFilesFromLocalStorage);
+
+    
+    async function uploadFiles(files) {
+        const loadingEl = showFileUploadLoading();
+        const formData = new FormData();
+        let uploadCount = 0;
+        let replaceCount = 0;
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        try {
+            const response = await fetch('/upload_file/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            });
+            const data = await response.json();
+
+            hideLoading(loadingEl);
+
+            if (data.status === 'success') {
+                // Process uploaded files
+                data.files.forEach(file => {
+                    if (file.status === 'success') {
+                        if (file.action === 'uploaded') uploadCount++;
+                        if (file.action === 'replaced') replaceCount++;
+                        // Check for existing file with same name
+                        let existingFileId = null;
+                        uploadedFiles.forEach((existingFile, id) => {
+                            if (existingFile.name === file.name) {
+                                existingFileId = id;
+                            }
+                        });
+
+                        if (existingFileId) {
+                            // Silently remove the existing file from UI and state
+                            const existingFileEl = document.querySelector(`[data-file-id="${existingFileId}"]`);
+                            if (existingFileEl) {
+                                existingFileEl.remove();
+                            }
+                            uploadedFiles.delete(existingFileId);
+                        }
+
+                        // Add the new file
+                        uploadedFiles.set(file.id, { name: file.name, type: file.type });
+                        addFileToUI(file.name, file.type, file.id);
+                    } else {
+                        addFileToUI(file.name, file.type, file.id, true, file.message);
+                    }
+                });
+                saveFilesToLocalStorage();
+                let msgParts = [];
+                if (uploadCount > 0) msgParts.push(`${uploadCount} new file${uploadCount > 1 ? 's were' : ' was'} uploaded`);
+                if (replaceCount > 0) msgParts.push(`${replaceCount} existing file${replaceCount > 1 ? 's were' : ' was'} replaced`);
+
+                if (msgParts.length > 0) {
+                    showUploadMessage(msgParts.join(' and ') + '.');
+                }
+
+            } else {
+                console.error('Upload failed:', data.message);
+                showUploadMessage(`Failed to upload file: ${data.message}`, false);
+            }
+        } catch (error) {
+            hideLoading(loadingEl);
+            console.error('Upload error:', error);
+            showUploadMessage(`Failed to upload file: ${error.message}`, false);
+        }
+    }
+// Add file to UI list
+function addFileToUI(fileName, fileType, fileId, isError = false, errorMessage = '') {
+    // First check if this file already exists in the UI
+    const existingFiles = document.querySelectorAll('[data-file-id]');
+    for (const existingFile of existingFiles) {
+        const existingFileName = existingFile.querySelector('.file-name');
+        if (existingFileName && existingFileName.textContent.trim() === fileName) {
+            // Remove the existing file
+            const existingFileId = existingFile.dataset.fileId;
+            uploadedFiles.delete(existingFileId);
+            existingFile.remove();
+            break;
+        }
+    }
+
+    const fileEl = document.createElement('div');
+    
+    fileEl.dataset.fileId = fileId;
+    
+    fileEl.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="file-icon">${getFileIcon(fileType)}</span>
+          <span class="file-name truncate max-w-[180px]">${fileName}</span>
+          ${isError ? '<span class="text-red-500 text-xs">(Error)</span>' : ''}
+        </div>
+        <button class="delete-file-btn opacity-100 md:opacity-0 md:group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      `;
+    fileEl.className = 'file-list-item flex items-center justify-between p-2  group';
+
+    
+    if (isError && errorMessage) {
+        const warningEl = document.createElement('div');
+        warningEl.className = 'file-warning';
+        warningEl.textContent = errorMessage;
+        fileEl.appendChild(warningEl);
+    }
+    
+    fileList.appendChild(fileEl);
+    
+    const deleteBtn = fileEl.querySelector('.delete-file-btn');
+    deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deleteFile(fileId, fileName);
+    });
+}
+
+async function deleteFile(fileId, fileName) {
+  const isConfirmed = await customConfirm.show(`Are you sure you want to delete "${fileName}"?`);
+  
+  if (!isConfirmed) return;
+
+  try {
+    const response = await fetch('/delete_file/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+      },
+      body: JSON.stringify({
+        file_id: fileId
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+
+    if (data.status === 'success') {
+      // Remove from UI
+      const fileEl = document.querySelector(`[data-file-id="${fileId}"]`);
+      if (fileEl) {
+        fileEl.remove();
+      }
+      // Remove from local state
+      uploadedFiles.delete(fileId);
+      saveFilesToLocalStorage();
+      showUploadMessage(`"${fileName}" has been deleted.`);
+    } else {
+      showUploadMessage(`Failed to delete file: ${data.message}`, false);
+    }
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    showUploadMessage(`Failed to delete file: ${error.message}`, false);
+  }
+} 
+
+// Get file icon based on type
+    function getFileIcon(fileType) {
+      const icons = {
+        pdf: '📄',
+        docx: '📝',
+        pptx: '📊',
+        ppt: '📊',
+        xlsx: '📊',
+        xls: '📊',
+        txt: '📑',
+        md: '📑',
+        jpg: '🖼️',
+        jpeg: '🖼️',
+        png: '🖼️',
+        gif: '🖼️',
+        py: '🐍',
+        js: '📜',
+        html: '🌐',
+        css: '🎨',
+        json: '🔣',
+        csv: '📊',
+        zip: '🗜️',
+        rar: '🗜️',
+      };
+      return icons[fileType.toLowerCase()] || '📁';
+    }
+
+    // Reset the session
+    async function resetSession() {
+  const loadingEl = showQALoading();
+
+  try {
+    const response = await fetch('/reset_session/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+      },
+    });
+    const data = await response.json();
+
+    hideLoading(loadingEl);
+
+    if (data.status === 'success') {
+      // Clear the file list and uploaded files
+      fileList.innerHTML = '';
+      uploadedFiles.clear();
+      localStorage.removeItem('uploadedFiles'); // Clear localStorage
+      addSystemMessage("Session has been reset. You can upload new files now.");
+    } else {
+      addSystemMessage(`Error resetting session: ${data.message}`, true);
+    }
+  } catch (error) {
+    hideLoading(loadingEl);
+    console.error('Error resetting session:', error);
+    addSystemMessage(`Error resetting session: ${error.message}`, true);
+  }
+}
+    resetBtn.addEventListener('click', resetSession);
+
+    // Ask a question to the server
+    
+    async function askQuestion(question, fileId = null) {
+      const loadingEl = showQALoading();
+      
+      try {
+        const response = await fetch('/ask_question/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
+          body: JSON.stringify({
+            question,
+            file_id: fileId
+          }),
+        });
+        const data = await response.json();
+        
+        hideLoading(loadingEl);
+        
+        if (data.status === 'success') {
+          return data.answer;
+        } else {
+          // return `Error: ${data.message}`;
+          return addSystemMessage(`Error: ${data.message}`, true);
+        }
+      } catch (error) {
+        hideLoading(loadingEl);
+        console.error('Error asking question:', error);
+        // return `Error: ${error.message}`;
+        return addSystemMessage(`Error: ${data.message}`, true);
+      }
+    }
+
+    // Add system message (without copy button)
+    function addSystemMessage(text, isError = false) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `
+    system-message
+    max-w-xl
+    mx-auto
+    p-4
+    rounded-lg
+    shadow
+    mb-3
+    text-sm
+    ${isError ? 'bg-red-50 border border-red-400 text-red-700' : 'bg-blue-50 border border-blue-300 text-blue-900'}
+    transition-opacity
+    duration-300
+    opacity-0
+  `.trim();
+
+  messageDiv.innerHTML = marked.parse(text);
+  chatContainer.appendChild(messageDiv);
+
+  // Trigger fade-in effect
+  requestAnimationFrame(() => {
+    messageDiv.style.opacity = '1';
+  });
+
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+    
+  questionInput.addEventListener('input', () => {
+    questionInput.style.height = 'auto'; // Reset height
+    const maxHeight = 192; // 8 lines * 24px line-height (approx)
+    questionInput.style.height = `${Math.min(questionInput.scrollHeight, maxHeight)}px`;
+  });
+
+    // Add chat message to the UI
+    function addChatMessage(text, sender) {
+      const messageDiv = document.createElement('div');
+      messageDiv.classList.add('flex', 'mb-4');
+      
+      if (sender === 'user') {
+        // User message
+        messageDiv.classList.add('justify-end');
+        messageDiv.innerHTML = `
+          <div class="rounded-lg p-3 max-w-[70%] bg-blue-100 text-right">
+            <p>${text}</p>
+          </div>
+        `;
+      } else if (sender === 'bot') {
+        // Bot response (with copy button)
+        messageDiv.classList.add('justify-center');
+        messageDiv.innerHTML = `
+          <div class="relative max-w-[70%] prose prose-slate markdown-content" style="background:transparent;">
+            <div class="rendered-markdown">${marked.parse(text)}</div>
+            <div class="flex justify-center mt-2">
+              <button class="copy-btn inline-flex items-center gap-1 text-sm text-gray-500 hover:text-blue-500" title="Copy full response">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 16h8M8 12h8m-6 8h6a2 2 0 002-2v-6a2 2 0 00-2-2h-6a2 2 0 00-2 2v6a2 2 0 002 2zM4 12h.01" />
+                </svg>
+                Copy
+              </button>
+            </div>
+          </div>
+        `;
+        
+        // Add copy functionality
+        const copyBtn = messageDiv.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', () => {
+          const responseContainer = copyBtn.closest('.prose');
+          const markdownContent = responseContainer.querySelector('.rendered-markdown');
+          if (!markdownContent) return;
+          
+          const originalContent = copyBtn.innerHTML;
+          
+          navigator.clipboard.writeText(markdownContent.textContent).then(() => {
+            copyBtn.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Copied!`;
+            
+            setTimeout(() => {
+              copyBtn.innerHTML = originalContent;
+            }, 1500);
+          });
+        });
+      }
+      
+      chatContainer.appendChild(messageDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Handle Enter key press
+    // Handle Enter key press
+questionInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault(); // Prevent the default behavior to avoid adding a new line
+    sendQuestion();
+  }
+});
+
+// Handle send button click
+sendBtn.addEventListener('click', sendQuestion);
+let isProcessingQuestion = false;
+// Send question to server
+ async function sendQuestion() {
+        const question = questionInput.value.trim();
+
+        if (!question || isProcessingQuestion) return;
+
+        // Set processing state
+        isProcessingQuestion = true;
+        questionInput.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        // Add user question to chat
+        addChatMessage(question, 'user');
+        questionInput.value = '';
+
+        // Reset textarea height to single row
+        questionInput.style.height = 'auto';
+        questionInput.rows = 1;
+
+        // Check if the question mentions a specific file
+        const fileQueryMatch = question.match(/about (?:the )?file (.+?)(?:\?|$)/i);
+        let fileId = null;
+
+        if (fileQueryMatch) {
+            const fileName = fileQueryMatch[1].trim();
+            // Find the file ID by name
+            for (const [id, file] of uploadedFiles.entries()) {
+                if (file.name.includes(fileName)) {
+                    fileId = id;
+                    break;
+                }
+            }
+        }
+
+        try {
+            const answer = await askQuestion(question, fileId);
+            addChatMessage(answer, 'bot');
+        } catch (error) {
+            console.error('Error processing question:', error);
+            addSystemMessage(`Error processing your question: ${error.message}`, true);
+        } finally {
+            // Reset processing state
+            isProcessingQuestion = false;
+            questionInput.disabled = false;
+            sendBtn.disabled = false;
+            sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            questionInput.focus();
+        }
+    }
+
+    // Update the Enter key handler to check processing state
+    questionInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !isProcessingQuestion) {
+            e.preventDefault();
+            sendQuestion();
+        }
+    });
+
+    // Update the send button click handler
+    sendBtn.addEventListener('click', () => {
+        if (!isProcessingQuestion) {
+            sendQuestion();
+        }
+    });
+// Adjust textarea height while typing
+questionInput.addEventListener('input', () => {
+  questionInput.style.height = 'auto'; // Reset height
+  questionInput.style.height = `${questionInput.scrollHeight}px`;
+});
+
+    // Helper function to get CSRF token
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    function showUploadMessage(message, isSuccess = true) {
+  const msgBox = document.getElementById('upload-message');
+  msgBox.innerHTML = `
+    <div class="flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="${isSuccess ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}" />
+      </svg>
+      <span>${message}</span>
+    </div>
+  `;
+
+  // Set base classes
+  msgBox.className = `
+    fixed top-5 right-5 z-50 max-w-sm px-4 py-3 rounded-lg shadow-md
+    transition-opacity duration-500
+    ${isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
+  `;
+
+  // Force visibility
+  msgBox.style.opacity = '0';
+  msgBox.classList.remove('hidden');
+  setTimeout(() => {
+    msgBox.style.opacity = '1';
+  }, 10);
+
+  // Hide after 4 seconds
+  setTimeout(() => {
+    msgBox.style.opacity = '0';
+    setTimeout(() => {
+      msgBox.classList.add('hidden');
+    }, 500); // allow fade-out before hiding
+  }, 4000);
+}
+
+
+  </script>
+</body>
+</html>
+
+
+
+<!-- Error: Error response 429 while fetching https://api.mistral.ai/v1/chat/completions: {"object":"error","message":"Service tier capacity exceeded for this model.","type":"invalid_request_error","param":null,"code":null} -->

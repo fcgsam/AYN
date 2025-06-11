@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# Django DB (if using SQLite)
+*.sqlite3
+
+# Media files (adjust this if you're storing uploads)
+media/
+vectorstores/
+
+# VS Code or other IDEs
+.vscode/
+.idea/
+
+# OS junk files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# dotenv and secrets
+.env
+*.env
