@@ -18,8 +18,10 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import PromptTemplate
 from langchain.docstore.document import Document
 
-# ========== Config ==========
 
+import logging
+logger = logging.getLogger(__name__)
+# ========== Config ==========
 from dotenv import load_dotenv
 load_dotenv()  
 ms_api_key = os.getenv('MistralAI_API_TOKEN')
@@ -27,7 +29,6 @@ ms_api_key = os.getenv('MistralAI_API_TOKEN')
 # embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
 llm = ChatMistralAI(model="mistral-large-latest", api_key=ms_api_key)
 
 GENERAL_PROMPT = PromptTemplate.from_template("""
@@ -51,29 +52,29 @@ def index(request):
 @csrf_exempt
 @require_POST
 def upload_file(request):
-    embeddings = get_embeddings()
-    if not request.FILES:
-        return JsonResponse({'status': 'error', 'message': 'No files uploaded'}, status=400)
-
     try:
+        if not request.FILES:
+            logger.warning("No files uploaded")
+            return JsonResponse({'status': 'error', 'message': 'No files uploaded'}, status=400)
+
+        embeddings = get_embeddings()
         if 'documents' not in request.session:
             request.session['documents'] = {}
 
         documents_data = request.session['documents']
         results = []
-        
+
         for file in request.FILES.getlist('files'):
             file_name = file.name
             file_ext = os.path.splitext(file_name)[1][1:].lower()
-            
+
             # Check for existing file with same name
             existing_file_id = None
             for file_id, file_data in documents_data.items():
-                if file_data['name'].lower() == file_name.lower():  # Case insensitive comparison
+                if file_data['name'].lower() == file_name.lower():
                     existing_file_id = file_id
                     break
-            
-            # If file exists, use the existing ID (we'll overwrite it)
+
             file_id = existing_file_id if existing_file_id else str(uuid.uuid4())
 
             # Delete existing FAISS files if they exist
@@ -87,7 +88,7 @@ def upload_file(request):
                         if os.path.exists(faiss_file):
                             os.remove(faiss_file)
                 except Exception as e:
-                    print(f"Error deleting existing FAISS files: {e}")
+                    logger.error(f"Error deleting existing FAISS files: {e}")
 
             # Process the file
             with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_ext}") as tmp_file:
@@ -96,7 +97,7 @@ def upload_file(request):
                 tmp_file_path = tmp_file.name
 
             text = extract_text_from_file(tmp_file_path, file_ext)
-            os.unlink(tmp_file_path)              
+            os.unlink(tmp_file_path)
 
             if text:
                 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -123,7 +124,6 @@ def upload_file(request):
                     'status': 'success',
                     'action': 'replaced' if existing_file_id else 'uploaded'
                 })
-        
             else:
                 results.append({
                     'id': file_id,
@@ -134,12 +134,12 @@ def upload_file(request):
                 })
 
         request.session.modified = True
+        logger.info("File upload and processing completed successfully")
         return JsonResponse({'status': 'success', 'files': results})
 
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    
-
+        logger.error(f"Error processing file: {str(e)}", exc_info=True)
+        return JsonResponse({'status': 'error', 'message': 'An error occurred while processing your request.'}, status=500)
 
 
 @csrf_exempt
@@ -150,7 +150,7 @@ def ask_question(request):
         question = data.get('question')
         file_id = data.get('file_id')
         embeddings = get_embeddings()
-
+        print(f"Received question: {question}, file_id: {file_id}")
         if not question:
             return JsonResponse({'status': 'error', 'message': 'Question required'}, status=400)
 
@@ -178,12 +178,10 @@ def ask_question(request):
                     Question: {question}
 
                     Answer:""")
-            context = "\n\n".join([getattr(doc, 'page_content', '') for doc in retrieved_docs if getattr(doc, 'page_content', '')])
-            
 
             chain = create_stuff_documents_chain(llm=llm, prompt=prompt)
             answer = chain.invoke({
-                "context": context,
+                "context": retrieved_docs,
                 "question": question,
                 "document_name": file_data['name']
             })
@@ -192,12 +190,12 @@ def ask_question(request):
             for doc in documents_data.values():
                 # vectorstore = FAISS.load_local(doc['path'], embeddings)
                 vectorstore = FAISS.load_local(doc['path'], embeddings, allow_dangerous_deserialization=True)
-
+                print(f"Searching in document: {doc['name']} at {doc['path']} {retrieved_docs}")
                 retrieved_docs.extend(vectorstore.similarity_search(question, k=2))
-
+                
             if not retrieved_docs:
                 return JsonResponse({'status': 'success', 'answer': "I couldn't find any relevant information in your uploaded documents."})
-
+            
             chain = create_stuff_documents_chain(llm=llm, prompt=GENERAL_PROMPT)
             answer = chain.invoke({
                 "context": retrieved_docs,
