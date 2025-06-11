@@ -487,7 +487,8 @@ function loadFilesFromLocalStorage() {
                 },
             });
             const data = await response.json();
-
+            console.log('Upload response:', data);
+            
             hideLoading(loadingEl);
 
             if (data.status === 'success') {
