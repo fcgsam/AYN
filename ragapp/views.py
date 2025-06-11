@@ -23,7 +23,9 @@ from dotenv import load_dotenv
 load_dotenv()  
 ms_api_key = os.getenv('MistralAI_API_TOKEN')
 
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+# embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
 llm = ChatMistralAI(model="mistral-large-latest", api_key=ms_api_key)
 
 GENERAL_PROMPT = PromptTemplate.from_template("""
