@@ -19,12 +19,14 @@ from langchain_core.prompts import PromptTemplate
 from langchain.docstore.document import Document
 
 # ========== Config ==========
+
 from dotenv import load_dotenv
 load_dotenv()  
 ms_api_key = os.getenv('MistralAI_API_TOKEN')
 
 # embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+def get_embeddings():
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 llm = ChatMistralAI(model="mistral-large-latest", api_key=ms_api_key)
 
@@ -49,6 +51,7 @@ def index(request):
 @csrf_exempt
 @require_POST
 def upload_file(request):
+    embeddings = get_embeddings()
     if not request.FILES:
         return JsonResponse({'status': 'error', 'message': 'No files uploaded'}, status=400)
 
@@ -146,6 +149,7 @@ def ask_question(request):
         data = json.loads(request.body)
         question = data.get('question')
         file_id = data.get('file_id')
+        embeddings = get_embeddings()
 
         if not question:
             return JsonResponse({'status': 'error', 'message': 'Question required'}, status=400)
