@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Create the media folder for volume mount
+RUN mkdir -p /app/media/vectorstore
+
 # Copy requirements first (for caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -20,8 +23,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the app
 COPY . .
 
-# Run Django migrations (if needed)
-# RUN python manage.py migrate
-
-# Start the app with Gunicorn (production-ready WSGI server)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "AYNPRO.wsgi:application"]
+# Start the app with Gunicorn and increased timeout
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "120", "AYNPRO.wsgi:application"]
