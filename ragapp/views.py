@@ -57,17 +57,18 @@ def upload_file(request):
             logger.warning("No files uploaded")
             return JsonResponse({'status': 'error', 'message': 'No files uploaded'}, status=400)
 
-        embeddings = get_embeddings()
+        
         if 'documents' not in request.session:
             request.session['documents'] = {}
 
         documents_data = request.session['documents']
         results = []
-
+        logger.info("Processing uploaded files",documents_data)
+        embeddings = get_embeddings()
         for file in request.FILES.getlist('files'):
             file_name = file.name
             file_ext = os.path.splitext(file_name)[1][1:].lower()
-
+            logger.info(f"Processing file: {file_name} with extension: {file_ext}")
             # Check for existing file with same name
             existing_file_id = None
             for file_id, file_data in documents_data.items():
