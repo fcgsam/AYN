@@ -27,9 +27,12 @@ load_dotenv()
 ms_api_key = os.getenv('MistralAI_API_TOKEN')
 
 # embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-def get_embeddings():
-    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-llm = ChatMistralAI(model="mistral-large-latest", api_key=ms_api_key)
+# def get_embeddings():
+#     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# top of views.py (after imports)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-MiniLM-L3-v2")
+
+llm = ChatMistralAI(model="mistral-small", api_key=ms_api_key)
 
 GENERAL_PROMPT = PromptTemplate.from_template("""
 Use the following context to answer the question. The context comes from documents the user has uploaded.
@@ -64,7 +67,7 @@ def upload_file(request):
         documents_data = request.session['documents']
         results = []
         logger.info("Processing uploaded files",documents_data)
-        embeddings = get_embeddings()
+        # embeddings = get_embeddings()
         for file in request.FILES.getlist('files'):
             file_name = file.name
             file_ext = os.path.splitext(file_name)[1][1:].lower()
@@ -150,7 +153,7 @@ def ask_question(request):
         data = json.loads(request.body)
         question = data.get('question')
         file_id = data.get('file_id')
-        embeddings = get_embeddings()
+        # embeddings = get_embeddings()
         print(f"Received question: {question}, file_id: {file_id}")
         if not question:
             return JsonResponse({'status': 'error', 'message': 'Question required'}, status=400)
