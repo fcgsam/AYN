@@ -24,4 +24,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Start the app with Gunicorn and increased timeout
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--timeout", "120", "AYNPRO.wsgi:application"]
+CMD gunicorn --bind 0.0.0.0:$PORT --timeout 120 --workers 1 AYNPRO.wsgi:application
+
