@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('get_uploaded_files/', views.get_uploaded_files, name='get_uploaded_files'),
     path('upload_file/', views.upload_file, name='upload_file'),
     path('ask_question/', views.ask_question, name='ask_question'),
     path('reset_session/', views.reset_session, name='reset_session'),

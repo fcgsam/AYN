@@ -251,9 +251,11 @@
     </div>
   </div>
 
-  <p class="text-xs text-gray-400 text-center mt-2">
-    This app uses free APIs, so response speed and accuracy may vary.
-  </p>
+  <p class="text-xs text-gray-400 text-center mt-1 mb-2">
+  This app uses free APIs, so response speed and accuracy may vary. It does not retain memory of previous questions or selected files — please include all necessary context in each query.</br>
+  Note: Some features may not work accurately with Excel files, especially if they contain complex structures, formulas, or non-tabular data.
+</p>
+
 </div>
 
 
@@ -306,7 +308,8 @@
 
     // State
     const uploadedFiles = new Map(); // Stores file info: {id, name, type}
-
+    console.log("Uploaded files state initialized:", uploadedFiles);
+    
     // Sidebar toggle functionality
     openBtn.addEventListener('click', () => {
       sidebar.classList.remove('translate-x-full');
@@ -435,39 +438,67 @@ customConfirm.init();
       }
     }
     // Function to load files from localStorage
-function saveFilesToLocalStorage() {
-  const expiryTime = Date.now() + 5 * 60 * 60 * 1000; // 5 hours from now
-  const files = {
-    expiresAt: expiryTime,
-    data: Array.from(uploadedFiles.entries()).map(([id, file]) => ({
-      id,
-      name: file.name,
-      type: file.type
-    }))
-  };
-  localStorage.setItem('uploadedFiles', JSON.stringify(files));
-}
+// function saveFilesToLocalStorage() {
+//   const expiryTime = Date.now() + 5 * 60 * 60 * 1000; // 5 hours from now
+//   const files = {
+//     expiresAt: expiryTime,
+//     data: Array.from(uploadedFiles.entries()).map(([id, file]) => ({
+//       id,
+//       name: file.name,
+//       type: file.type
+//     }))
+//   };
+//   localStorage.setItem('uploadedFiles', JSON.stringify(files));
+// }
 
-function loadFilesFromLocalStorage() {
-  const stored = localStorage.getItem('uploadedFiles');
-  if (!stored) return;
+// function loadFilesFromLocalStorage() {
+//   const stored = localStorage.getItem('uploadedFiles');
+//   if (!stored) return;
 
-  const parsed = JSON.parse(stored);
+//   const parsed = JSON.parse(stored);
 
-  if (!parsed.expiresAt || Date.now() > parsed.expiresAt) {
-    localStorage.removeItem('uploadedFiles');
-    return;
+//   if (!parsed.expiresAt || Date.now() > parsed.expiresAt) {
+//     localStorage.removeItem('uploadedFiles');
+//     return;
+//   }
+
+//   parsed.data.forEach(file => {
+//     uploadedFiles.set(file.id, { name: file.name, type: file.type });
+//     addFileToUI(file.name, file.type, file.id);
+//   });
+// }
+
+async function loadUploadedFiles() {
+  try {
+    const response = await fetch('/get_uploaded_files/', {
+      method: 'GET',
+      headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    });
+
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      uploadedFiles.clear(); // clear previous entries
+
+      result.files.forEach(file => {
+        uploadedFiles.set(file.id, {
+          name: file.name,
+          type: file.type
+        });
+        addFileToUI(file.name, file.type, file.id); // your UI logic
+      });
+    } else {
+      console.error(result.message);
+    }
+  } catch (err) {
+    console.error('Failed to load uploaded files:', err);
   }
-
-  parsed.data.forEach(file => {
-    uploadedFiles.set(file.id, { name: file.name, type: file.type });
-    addFileToUI(file.name, file.type, file.id);
-  });
 }
+
 
     // Run on page load
-    document.addEventListener('DOMContentLoaded', loadFilesFromLocalStorage);
-
+    // document.addEventListener('DOMContentLoaded', loadFilesFromLocalStorage);
+document.addEventListener('DOMContentLoaded', loadUploadedFiles);
     
     async function uploadFiles(files) {
         const loadingEl = showFileUploadLoading();
@@ -521,7 +552,8 @@ function loadFilesFromLocalStorage() {
                         addFileToUI(file.name, file.type, file.id, true, file.message);
                     }
                 });
-                saveFilesToLocalStorage();
+                // saveFilesToLocalStorage();
+                loadUploadedFiles();
                 let msgParts = [];
                 if (uploadCount > 0) msgParts.push(`${uploadCount} new file${uploadCount > 1 ? 's were' : ' was'} uploaded`);
                 if (replaceCount > 0) msgParts.push(`${replaceCount} existing file${replaceCount > 1 ? 's were' : ' was'} replaced`);
@@ -622,7 +654,8 @@ async function deleteFile(fileId, fileName) {
       }
       // Remove from local state
       uploadedFiles.delete(fileId);
-      saveFilesToLocalStorage();
+      // saveFilesToLocalStorage();
+      loadUploadedFiles();
       showUploadMessage(`"${fileName}" has been deleted.`);
     } else {
       showUploadMessage(`Failed to delete file: ${data.message}`, false);
@@ -707,7 +740,7 @@ async function deleteFile(fileId, fileName) {
           },
           body: JSON.stringify({
             question,
-            file_id: fileId
+            
           }),
         });
         const data = await response.json();
@@ -855,19 +888,29 @@ let isProcessingQuestion = false;
         questionInput.rows = 1;
 
         // Check if the question mentions a specific file
-        const fileQueryMatch = question.match(/about (?:the )?file (.+?)(?:\?|$)/i);
+        // const fileQueryMatch = question.match(/about (?:the )?file (.+?)(?:\?|$)/i);
         let fileId = null;
-
-        if (fileQueryMatch) {
-            const fileName = fileQueryMatch[1].trim();
-            // Find the file ID by name
-            for (const [id, file] of uploadedFiles.entries()) {
-                if (file.name.includes(fileName)) {
-                    fileId = id;
-                    break;
-                }
+        // console.log('File query match:', fileQueryMatch);
+        for (const [id, file] of uploadedFiles.entries()) {
+            // Check if the file name is mentioned anywhere in the question
+            if (question.toLowerCase().includes(file.name.toLowerCase())) {
+                fileId = id;
+                console.log('Matched file ID:', fileId, 'for name:', file.name);
+                break;
             }
         }
+        
+        // if (fileQueryMatch) {
+        //     const fileName = fileQueryMatch[1].trim();
+        //     // Find the file ID by name
+        //     for (const [id, file] of uploadedFiles.entries()) {
+        //         if (file.name.includes(fileName)) {
+        //             fileId = id;
+        //             console.log('Found file ID:', fileId, 'for name:', fileName);
+        //             break;
+        //         }
+        //     }
+        // }
 
         try {
             const answer = await askQuestion(question, fileId);
