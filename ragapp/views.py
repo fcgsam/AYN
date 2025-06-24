@@ -44,8 +44,14 @@ When analyzing spreadsheet data:
 Context:
 {context}
 
+Format responses with:
+- For explanations: Markdown bullet points
+- For code: ```lang blocks
+- For warnings: ⚠️ symbols
+                                              
 Question: {question}
 
+                                              
 Answer in a clear and concise manner. If the question asks about specific documents, make sure to only use information from those documents.
 If you can't find the answer in the provided context, say "I couldn't find that information in your documents".
 """)
